@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Live-Object-Detection-and-Tracking</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='style.css') }}"
+    />
+  </head>
+  <body>
+    <div class="container">
+      <!-- Header -->
+      <header class="header">
+        <h1>🎯 Live-Object-Detection-and-Tracking</h1>
+        <p>
+          Real-time object detection and multi-object tracking using YOLOv8 and
+          Deep SORT
+        </p>
+      </header>
+
+      <!-- Control Panel -->
+      <div class="control-panel">
+        <div class="status-indicator">
+          <span id="status-dot" class="status-dot"></span>
+          <span id="status-text">Initializing...</span>
+        </div>
+
+        <div class="controls">
+          <button
+            id="start-btn"
+            class="btn btn-start"
+            onclick="startDetection()"
+          >
+            ▶️ Start Detection
+          </button>
+          <button id="stop-btn" class="btn btn-stop" onclick="stopDetection()">
+            ⏹️ Stop Detection
+          </button>
+          <button
+            id="refresh-btn"
+            class="btn btn-refresh"
+            onclick="refreshStatus()"
+          >
+            🔄 Refresh Status
+          </button>
+        </div>
+      </div>
+
+      <!-- Video Stream -->
+      <div class="video-container">
+        <div class="video-wrapper">
+          <img
+            id="video-stream"
+            src="{{ url_for('video_feed') }}"
+            alt="Live Video Stream"
+          />
+          <div class="video-overlay">
+            <div class="video-info">
+              <div class="info-item">
+                <span class="info-label">Model:</span>
+                <span class="info-value">YOLOv8</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Tracker:</span>
+                <span class="info-value">Deep SORT</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Stream:</span>
+                <span class="info-value">MJPEG</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Information Panel -->
+      <div class="info-panel">
+        <div class="info-section">
+          <h3>📋 Features</h3>
+          <ul>
+            <li>Real-time object detection using YOLOv8</li>
+            <li>Multi-object tracking with unique IDs</li>
+            <li>Trajectory visualization</li>
+            <li>80+ COCO object classes support</li>
+            <li>Live webcam streaming</li>
+          </ul>
+        </div>
+
+        <div class="info-section">
+          <h3>🎨 Visual Elements</h3>
+          <ul>
+            <li>
+              <strong>Bounding Boxes:</strong> Colored rectangles around
+              detected objects
+            </li>
+            <li>
+              <strong>Labels:</strong> Object class, confidence score, and track
+              ID
+            </li>
+            <li>
+              <strong>Trajectories:</strong> Colored lines showing object
+              movement paths
+            </li>
+            <li>
+              <strong>Statistics:</strong> Live count of detected objects and
+              active tracks
+            </li>
+          </ul>
+        </div>
+
+        <div class="info-section">
+          <h3>⚙️ Controls</h3>
+          <ul>
+            <li>
+              <strong>Start Detection:</strong> Initialize camera and begin
+              processing
+            </li>
+            <li>
+              <strong>Stop Detection:</strong> Stop processing and release
+              camera
+            </li>
+            <li><strong>Refresh Status:</strong> Update connection status</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <footer class="footer">
+        <p>
+          Built with ❤️ using Flask, YOLOv8 (Ultralytics), OpenCV, and Deep SORT
+        </p>
+        <p>© 2024 - Real-time Object Detection & Tracking Application</p>
+      </footer>
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+      // Check status periodically
+      setInterval(checkStatus, 2000);
+
+      // Initial status check
+      checkStatus();
+
+      function checkStatus() {
+        fetch('/status')
+          .then(response => response.json())
+          .then(data => {
+            updateStatusDisplay(data);
+          })
+          .catch(error => {
+            console.error('Error checking status:', error);
+            updateStatusDisplay({
+              status: 'error',
+              webcam: false,
+              detector: false,
+            });
+          });
+      }
+
+      function updateStatusDisplay(data) {
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        const startBtn = document.getElementById('start-btn');
+        const stopBtn = document.getElementById('stop-btn');
+
+        // Update status indicator
+        statusDot.className = 'status-dot';
+
+        if (data.status === 'running' && data.webcam && data.detector) {
+          statusDot.classList.add('status-running');
+          statusText.textContent = 'Running - Detection Active';
+          startBtn.disabled = true;
+          stopBtn.disabled = false;
+        } else if (data.status === 'initializing') {
+          statusDot.classList.add('status-initializing');
+          statusText.textContent = 'Initializing...';
+          startBtn.disabled = true;
+          stopBtn.disabled = true;
+        } else {
+          statusDot.classList.add('status-stopped');
+          statusText.textContent = 'Stopped';
+          startBtn.disabled = false;
+          stopBtn.disabled = true;
+        }
+      }
+
+      function startDetection() {
+        const startBtn = document.getElementById('start-btn');
+        startBtn.disabled = true;
+        startBtn.innerHTML = '⏳ Starting...';
+
+        fetch('/start')
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              showNotification('Detection started successfully!', 'success');
+            } else {
+              showNotification(
+                'Failed to start detection: ' + data.message,
+                'error'
+              );
+            }
+            checkStatus();
+          })
+          .catch(error => {
+            showNotification('Error starting detection: ' + error, 'error');
+            checkStatus();
+          })
+          .finally(() => {
+            startBtn.innerHTML = '▶️ Start Detection';
+          });
+      }
+
+      function stopDetection() {
+        const stopBtn = document.getElementById('stop-btn');
+        stopBtn.disabled = true;
+        stopBtn.innerHTML = '⏳ Stopping...';
+
+        fetch('/stop')
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              showNotification('Detection stopped successfully!', 'success');
+            } else {
+              showNotification(
+                'Failed to stop detection: ' + data.message,
+                'error'
+              );
+            }
+            checkStatus();
+          })
+          .catch(error => {
+            showNotification('Error stopping detection: ' + error, 'error');
+            checkStatus();
+          })
+          .finally(() => {
+            stopBtn.innerHTML = '⏹️ Stop Detection';
+          });
+      }
+
+      function refreshStatus() {
+        const refreshBtn = document.getElementById('refresh-btn');
+        refreshBtn.disabled = true;
+        refreshBtn.innerHTML = '🔄 Refreshing...';
+
+        checkStatus();
+
+        setTimeout(() => {
+          refreshBtn.disabled = false;
+          refreshBtn.innerHTML = '🔄 Refresh Status';
+        }, 1000);
+      }
+
+      function showNotification(message, type) {
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.textContent = message;
+
+        // Add to page
+        document.body.appendChild(notification);
+
+        // Auto remove after 3 seconds
+        setTimeout(() => {
+          if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+          }
+        }, 3000);
+      }
+
+      // Handle video stream errors
+      document.getElementById('video-stream').onerror = function () {
+        console.log('Video stream error, retrying...');
+        setTimeout(() => {
+          this.src = this.src; // Refresh the image source
+        }, 1000);
+      };
+    </script>
+  </body>
+</html>
